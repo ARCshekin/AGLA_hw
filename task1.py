@@ -1,3 +1,5 @@
+TOLERANCE = 10 ** -6
+
 class Matrix:
     def __init__(self, matrix):
         self.n = len(matrix[0])
@@ -5,39 +7,69 @@ class Matrix:
         self.matrix = matrix
 
     def subtract_rows(self, r1, r2, k):
-        # R2 = R2 - k*R1
         for i in range(self.n):
             self.matrix[r2][i] -= self.matrix[r1][i] * k
 
+    def swap_rows(self, r1, r2):
+        self.matrix[r1], self.matrix[r2] = self.matrix[r2], self.matrix[r1]
+
     def gaussian_elimination(self, answers):
-        # Augment matrix with answers
+        augmented = [row.copy() for row in self.matrix]
         for i in range(self.m):
-            self.matrix[i].append(answers[i])
-        self.n += 1
+            augmented[i].append(answers[i])
+        num_rows = self.m
+        num_cols = self.n + 1
+        rank = 0
 
-        # Forward pass: create upper triangular matrix
-        for col in range(self.n - 1):
-            max_row = max(range(col, self.m), key=lambda r: abs(self.matrix[r][col]))
-            self.matrix[col], self.matrix[max_row] = self.matrix[max_row], self.matrix[col]
+        for col in range(num_cols - 1):  # Skip augmented column
+            pivot_row = -1
+            max_val = 0
+            for r in range(rank, num_rows):
+                current_val = abs(augmented[r][col])
+                if current_val > max_val:
+                    max_val = current_val
+                    pivot_row = r
 
-            if abs(self.matrix[col][col]) == 0:
-                raise "Non-singular matrix"
-
-            for row in range(col + 1, self.m):
-                self.subtract_rows(col, row, self.matrix[row][col] / self.matrix[col][col])
-
-        # Back substitution: solve from bottom up
-        solutions = [0] * (self.n - 1)
-        for row in reversed(range(self.m)):
-            if all(abs(x) < 1e-10 for x in self.matrix[row][:-1]):
+            if pivot_row == -1:
                 continue
-            solutions[row] = (self.matrix[row][-1] -
-                              sum(self.matrix[row][col] * solutions[col]
-                                  for col in range(row + 1, self.n - 1))) / self.matrix[row][row]
 
-        for i, el in enumerate(solutions):
-            solutions[i] = round(el, 3)
+            augmented[rank], augmented[pivot_row] = augmented[pivot_row], augmented[rank]
+
+            pivot = augmented[rank][col]
+            if abs(pivot) < TOLERANCE:
+                continue
+
+            for c in range(col, num_cols):
+                augmented[rank][c] /= pivot
+
+            for r in range(rank + 1, num_rows):
+                factor = augmented[r][col]
+                for c in range(col, num_cols):
+                    augmented[r][c] -= factor * augmented[rank][c]
+
+            rank += 1
+
+        for r in range(rank, num_rows):
+            if all(abs(x) < TOLERANCE for x in augmented[r][:-1]) and abs(augmented[r][-1]) > TOLERANCE:
+                raise "No solution"
+
+        if rank < self.n:
+            raise "Infinite solutions"
+
+        solutions = [0.0] * self.n
+        for r in reversed(range(rank)):
+            pivot_col = next((c for c in range(self.n) if abs(augmented[r][c]) > TOLERANCE), None)
+            if pivot_col is None:
+                continue
+
+            rhs = augmented[r][-1]
+            for c in range(pivot_col + 1, self.n):
+                rhs -= augmented[r][c] * solutions[c]
+            solutions[pivot_col] = rhs / augmented[r][pivot_col]
+
+        solutions = [round(s, 3) for s in solutions]
         return solutions
+
 '''
 ---- Example system: ----
  2x + y - z = 8
