@@ -1,80 +1,145 @@
-def orthogonal_complement(matrix):
-    '''
-    
-    Orthogonal compliment is basically null-space of matrix, so steps:
-
-    1. Finding reduced row echelon form (using Gaussian elimination) and identify pivot columns
-    2. Identifying free variables
-    3. Creating basis vectors (free var=1)
-    4. Filling in other positions based on the RREF matrix
-
-    '''
-    rref_matrix, pivot_columns = rref(matrix)
-
-    rank = len(pivot_columns)
-    n = len(matrix[0])
-
-    basis = []
-    for j in range(n):
-        if j not in pivot_columns:
-            vec = [0] * n
-            vec[j] = 1
-            for i in range(rank): vec[pivot_columns[i]] = -rref_matrix[i][j]
-            basis.append(vec)
-
-    return basis
+TOLERANCE = 10 ** -6
 
 
-def rref(matrix):
-    m = len(matrix)
-    n = len(matrix[0]) if m > 0 else 0
+class Matrix:
+    def __init__(self, matrix=None, m=0, n=0):
+        if matrix is not None:
+            self.m = len(matrix)
+            self.n = len(matrix[0]) if self.m > 0 else 0
+            self.matrix = [[elem for elem in row] for row in matrix]
+        else:
+            self.m = m
+            self.n = n
+            self.matrix = [[0] * n for _ in range(m)]
 
-    rref = [row.copy() for row in matrix]
-    pivot_columns = []
+    def copy(self):
+        return Matrix([[el for el in row] for row in self.matrix])
 
-    for r in range(m):
-        pivot = r
-        while pivot < m and rref[pivot][r] == 0: pivot += 1
+    def transposed(self):
+        return Matrix([[self.matrix[row][col] for row in range(self.m)]
+                       for col in range(self.n)])
 
-        if pivot >= m:
-            continue
+    def rref(self):
+        rref = self.copy()
+        rank = 0
 
-        if pivot != r:
-            rref[r], rref[pivot] = rref[pivot], rref[r]
+        for col in range(rref.n):
+            pivot = -1
+            for row in range(rank, rref.m):
+                if abs(rref.matrix[row][col]) > TOLERANCE:
+                    pivot = row
+                    break
 
-        pivot_columns.append(r)
+            if pivot == -1:
+                continue
 
-        pivot_val = rref[r][r]
-        if pivot_val != 0:
-            for c in range(n):
-                rref[r][c] /= pivot_val
+            rref.swap_rows(rank, pivot)
+            rref.multiply_row(rank, 1 / rref.matrix[rank][col])
 
-        for i in range(m):
-            if i != r and rref[i][r] != 0:
-                factor = rref[i][r]
-                for c in range(n):
-                    rref[i][c] -= factor * rref[r][c]
+            for row in range(rref.m):
+                if row != rank and abs(rref.matrix[row][col]) > TOLERANCE:
+                    factor = rref.matrix[row][col]
+                    rref.subtract_rows(rank, row, factor)
 
-    return rref, pivot_columns
+            rank += 1
+
+        return rref, rank
+
+    def column_space(self):
+        rref, rank = self.rref()
+        space = []
+        pivot_cols = set()
+
+        for row in range(rank):
+            for col in range(rref.n):
+                if abs(rref.matrix[row][col] - 1) < TOLERANCE:
+                    pivot_cols.add(col)
+                    break
+
+        for col in pivot_cols:
+            space.append([self.matrix[row][col] for row in range(self.m)])
+
+        return space
+
+    def row_space(self):
+        rref, rank = self.rref()
+        return [row for row in rref.matrix[:rank]]
+
+    def null_space(self):
+        rref, rank = self.rref()
+        space = []
+        pivot_cols = []
+
+        for row in range(rank):
+            for col in range(rref.n):
+                if abs(rref.matrix[row][col] - 1) < TOLERANCE:
+                    pivot_cols.append(col)
+                    break
+
+        free_cols = sorted(set(range(rref.n)) - set(pivot_cols))
+
+        for free in free_cols:
+            vec = [0] * rref.n
+            vec[free] = 1
+
+            for row in reversed(range(rank)):
+                pivot_col = pivot_cols[row]
+                vec[pivot_col] = -sum(rref.matrix[row][col] * vec[col]
+                                      for col in range(pivot_col + 1, rref.n))
+
+            space.append(vec)
+
+        return space
+
+    def left_null_space(self):
+        return self.transposed().null_space()
+
+    def subtract_rows(self, r1, r2, k):
+        for i in range(self.n):
+            self.matrix[r2][i] -= self.matrix[r1][i] * k
+
+    def swap_rows(self, r1, r2):
+        self.matrix[r1], self.matrix[r2] = self.matrix[r2], self.matrix[r1]
+
+    def multiply_row(self, row, scalar):
+        for i in range(self.n):
+            self.matrix[row][i] *= scalar
+
+    def __mul__(self, other):
+        if self.n != other.m:
+            raise "Matrix dimensions don't match"
+
+        result = [[0] * other.n for _ in range(self.m)]
+        for i in range(self.m):
+            for j in range(other.n):
+                result[i][j] = sum(self.matrix[i][k] * other.matrix[k][j]
+                                   for k in range(self.n))
+        return Matrix(result)
+
+    def output(self):
+        for row in self.matrix:
+            print(*[round(el, 2) for el in row])
+
+    def orthogonal_complement(self):
+        return self.left_null_space()
 
 
 if __name__ == "__main__":
-    A = [
+    A = Matrix([
         [1, 2, 3],
-        [4, 5, 6]
-    ]
+        [4, 5, 6],
+        [7, 8, 9]
+    ])
 
     print("Original matrix:")
-    for row in A:
-        print(row)
+    A.output()
 
-    orth_comp = orthogonal_complement(A)
+    orth_comp = A.orthogonal_complement()
     print("\nOrthogonal complement basis vectors:")
     for vec in orth_comp:
-        print(vec)
+        print([round(x, 4) for x in vec])
 
-    print("\nVerification (dot products should be zero):")
-    for row in A:
-        for vec in orth_comp:
-            dot = sum(row[i] * vec[i] for i in range(len(row)))
-            print(f"Dot product of {row} and {vec}: {dot}")
+    print("\nVerification:")
+    for vec in orth_comp:
+        product = A * Matrix([[x] for x in vec])  # Make vec a column matrix
+        print("Product:", [round(row[0], 4) for row in product.matrix])
