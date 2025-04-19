@@ -1,4 +1,14 @@
 def orthogonal_complement(matrix):
+    '''
+    
+    Orthogonal compliment is basically null-space of matrix, so steps:
+
+    1. Finding reduced row echelon form (using Gaussian elimination) and identify pivot columns
+    2. Identifying free variables
+    3. Creating basis vectors (free var=1)
+    4. Filling in other positions based on the RREF matrix
+
+    '''
     rref_matrix, pivot_columns = rref(matrix)
 
     rank = len(pivot_columns)
